@@ -68,8 +68,10 @@ class BBCode:
                     mon *= sym**exp
             basis.append(mon)
 
-        self._basis_cache = basis
-        return list(basis)
+        x, y, xinv, yinv = gens
+        normalized = [_normalize_laurent_expr(mon, x, y, xinv, yinv) for mon in basis]
+        self._basis_cache = normalized
+        return list(normalized)
 
     def anyon_period(self, max_steps: int | None = None, recompute: bool = False) -> Tuple[int, int]:
         """Compute anyon periods (Lx, Ly) for this BB code."""
@@ -135,7 +137,9 @@ class BBCode:
 
         s = quotients[0]
         t = quotients[1]
-        return s, t
+        s_norm = _normalize_laurent_expr(s, x, y, xinv, yinv)
+        t_norm = _normalize_laurent_expr(t, x, y, xinv, yinv)
+        return s_norm, t_norm
 
 def _laurent_to_polynomial(
     expr: sp.Expr, x: sp.Symbol, y: sp.Symbol, xinv: sp.Symbol, yinv: sp.Symbol
@@ -197,5 +201,39 @@ def _variable_bounds(
 
 def _laurent_power(symbol: sp.Symbol, inv_symbol: sp.Symbol, exp: int) -> sp.Expr:
     return symbol**exp if exp >= 0 else inv_symbol ** (-exp)
+
+
+def _normalize_laurent_expr(
+    expr: sp.Expr,
+    x: sp.Symbol,
+    y: sp.Symbol,
+    xinv: sp.Symbol,
+    yinv: sp.Symbol,
+) -> sp.Expr:
+    expr = sp.expand(expr)
+    terms = expr.as_ordered_terms() if isinstance(expr, sp.Add) else [expr]
+    monomials: dict[Tuple[int, int], int] = {}
+
+    for term in terms:
+        coeff, monomial = term.as_coeff_Mul()
+        if int(coeff) % 2 == 0:
+            continue
+
+        powers = monomial.as_powers_dict()
+        x_exp = int(powers.get(x, 0)) - int(powers.get(xinv, 0))
+        y_exp = int(powers.get(y, 0)) - int(powers.get(yinv, 0))
+        key = (x_exp, y_exp)
+        monomials[key] = (monomials.get(key, 0) + 1) % 2
+
+    result = sp.Integer(0)
+    for (x_exp, y_exp), coeff in monomials.items():
+        if coeff % 2 == 0:
+            continue
+        mon = sp.Integer(1)
+        mon *= x**x_exp if x_exp >= 0 else x**x_exp
+        mon *= y**y_exp if y_exp >= 0 else y**y_exp
+        result += mon
+
+    return sp.expand(result)
 
 
