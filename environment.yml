@@ -1,0 +1,7 @@
+name: anyon-algebra
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - singular
+  - sympy
