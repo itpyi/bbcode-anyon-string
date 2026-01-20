@@ -1,19 +1,19 @@
-# Study the path of abelian anyons in 2d translational invariant systems
+# Study the path of abelian anyons in 2D translational invariant systems
 
-## Conda environment (computer algebra)
+## Quick guide
 
-Create the environment for Groebner basis / ideal computations over Laurent polynomial rings (via Singular + SymPy):
+### 1) Environment
+- Create the conda environment: conda env create -f environment.yml
+- Activate it: conda activate anyon-algebra
 
-- Create: `conda env create -f environment.yml`
-- Activate: `conda activate anyon-algebra`
+### 2) Project layout
+- Source code: [src/](src/)
+- Notebooks: [notebooks/](notebooks/)
+- Plots: [assets/](assets/)
+- Outputs: [data/](data/)
 
-Quick Singular check (modeling Laurent ring by adding inverses and relations):
-
-```
-singular -q <<'EOF'
-ring r = 2,(x,y,xinv,yinv),lp;
-ideal I = x*y + 1, x2 + y, x*xinv - 1, y*yinv - 1;
-groebner(I);
-EOF
-```
+### 3) Run the notebook
+Open [notebooks/bb_code_example.ipynb](notebooks/bb_code_example.ipynb) and run the cells in order. It will:
+- Run tests and write results to [data/test.txt](data/test.txt)
+- Generate the combined plaquette+edge plot in [assets/gross_anyon_pair_with_string_m1_n0.svg](assets/gross_anyon_pair_with_string_m1_n0.svg)
 
