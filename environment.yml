@@ -6,3 +6,6 @@ dependencies:
   - singular
   - sympy
   - matplotlib
+  - scipy
+  - numpy
+  - ldpc
