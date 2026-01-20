@@ -4,7 +4,7 @@ from typing import Sequence, Tuple
 
 import sympy as sp
 
-from bb_code import BBCode
+from .bb_code import BBCode
 
 
 def run_tests(f: sp.Expr, g: sp.Expr, label: str | None = None) -> None:

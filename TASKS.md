@@ -14,7 +14,7 @@ Create a class for BB codes.
 It is based on Laurent polynomial ring $R = \mathbb{F}_2[x^{\pm 1}, y^{\pm 1}]$. 
 It is specified by two polynomials $f, g \in R$. 
 
-Usage: `from bb_code import BBCode; bb = BBCode(f, g)`.
+Usage: `from src.bb_code import BBCode; bb = BBCode(f, g)`.
 
 ### Anyon space for BB codes
 
