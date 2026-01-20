@@ -42,3 +42,21 @@ That is, we want to compute two polynomials $s,t$ such that $sf + tg = a (x^{m L
 Note that since $L_x, L_y$ are anyon periods, $(x^{m L_x} y^{n L_y}+1) \in (f,g)$ so that it is guaranteed to have a solution.
 
 Usage: `s, t = bb.anyon_string(vector, m, n)`.
+
+## Plot polynomial in a lattice
+
+To visualize the result, we can plot the polynomial in a lattice.
+
+### Plaquette plotting
+
+Given one polynomial $f$, each monomial term $x^a y^b$ can be viewed as a coordinate $(a,b)$.
+We can plot this polynomial in a lattice, with the (0,0) plaquette marked.
+Range of the lattice should be computed from the polynomial, to put all terms in the figure. 
+The output should be an svg or pdf vector graph.
+
+### Edge plotting
+
+Given a pair of polynomials $(s,t)$, view monomials in $s$ as the coordinates for horizontal edges, and $t$ for vertical ones.
+Visualise these edges as in the plaquette plotting, using the same colour for horizontal and vertical edges.
+Specifically, for an $s$ term $x^a y^b$, the edge is $(a-1/2, b-1/2)$ to $(a+1/2, b-1/2)$. 
+For a $t$ term $x^a y^b$, the edge is $(a-1/2, b-1/2)$ to $(a-1/2, b+1/2)$.  
