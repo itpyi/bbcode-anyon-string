@@ -6,7 +6,7 @@ Create a conda environment for computer algebra computations focused on ideals a
 - Primary tools: Singular (and SymPy as a helper library).
 - Provide a quick verification example (Groebner basis computation) that runs from the shell.
 
-## Bivariate bicycle (BB) code 
+## Anyon string for bivariate bicycle (BB) code 
 
 ### The class for BB codes
 
@@ -60,3 +60,8 @@ Given a pair of polynomials $(s,t)$, view monomials in $s$ as the coordinates fo
 Visualise these edges as in the plaquette plotting, using the same colour for horizontal and vertical edges.
 Specifically, for an $s$ term $x^a y^b$, the edge is $(a-1/2, b-1/2)$ to $(a+1/2, b-1/2)$. 
 For a $t$ term $x^a y^b$, the edge is $(a-1/2, b-1/2)$ to $(a-1/2, b+1/2)$.  
+
+
+## Logical classification for finite BB codes
+
+## Topological entanglement entropy for BB codes

@@ -13,7 +13,7 @@
 - Outputs: [data/](data/)
 
 ### 3) Run the notebook
-Open [notebooks/bb_code_example.ipynb](notebooks/bb_code_example.ipynb) and run the cells in order. It will:
+Open [notebooks/bb_code_example.ipynb](notebooks/anyon_string.ipynb) and run the cells in order. It will:
 - Run tests and write results to [data/test.txt](data/test.txt)
 - Generate the combined plaquette+edge plot in [assets/gross_anyon_pair_with_string_m1_n0.svg](assets/gross_anyon_pair_with_string_m1_n0.svg)
 
