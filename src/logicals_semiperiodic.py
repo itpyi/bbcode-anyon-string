@@ -1156,7 +1156,21 @@ def compare_semiperiodic_with_css(
     else:
         print("  (empty)")
 
-    print("Logical Z/X pairing (orthogonalized):")
+    print("-" * 72)
+    print("Logical Z/X pairing (orthogonalized, sector):")
+    sector_details = x_orth.get("sector_details", {})
+    if sector_details:
+        print("Logical X/Z pairing rank by sector:")
+        for key in ("ann_f", "ann_g", "tor1_to_tor2", "tor2_to_tor1"):
+            info = sector_details.get(key, {})
+            rank = info.get("rank_commutation", 0)
+            x_raw_shape = info.get("x_matrix_raw_shape")
+            x_shape = info.get("x_matrix_shape")
+            z_shape = info.get("z_matrix_shape")
+            print(
+                f"  {key}: rank_commutation={rank}, "
+                f"x_raw_shape={x_raw_shape}, x_shape={x_shape}, z_shape={z_shape}"
+            )
     pivot_cols = x_orth.get("pivot_columns", np.zeros((0,), dtype=int))
     if pivot_cols.size and x_orth["x_orthogonal"].size:
         monomials = _monomial_basis(l, m)
@@ -1180,19 +1194,27 @@ def compare_semiperiodic_with_css(
     else:
         print("  (empty)")
 
-    sector_details = x_orth.get("sector_details", {})
-    if sector_details:
-        print("Logical X/Z pairing rank by sector:")
-        for key in ("ann_f", "ann_g", "tor1_to_tor2", "tor2_to_tor1"):
-            info = sector_details.get(key, {})
-            rank = info.get("rank_commutation", 0)
-            x_raw_shape = info.get("x_matrix_raw_shape")
-            x_shape = info.get("x_matrix_shape")
-            z_shape = info.get("z_matrix_shape")
-            print(
-                f"  {key}: rank_commutation={rank}, "
-                f"x_raw_shape={x_raw_shape}, x_shape={x_shape}, z_shape={z_shape}"
-            )
+    x_orth_full = orthogonalize_logical_x_matrix(x_matrix, z_matrix)
+    print("-" * 72)
+    print("Logical X/Z pairing (orthogonalized, full):")
+    if x_orth_full["x_orthogonal"].size:
+        monomials = _monomial_basis(l, m)
+        pivot_cols = x_orth_full.get("pivot_columns", np.zeros((0,), dtype=int))
+        for idx, row in enumerate(x_orth_full["x_orthogonal"]):
+            poly_a, poly_b = _vector_to_poly_pair(row, monomials, l, m)
+            if idx < len(pivot_cols):
+                z_idx_int = int(pivot_cols[idx])
+                z_poly_a, z_poly_b = _vector_to_poly_pair(
+                    z_matrix[z_idx_int], monomials, l, m
+                )
+                print(
+                    f"  X_orth_full[{idx}] = [{poly_a}, {poly_b}]"
+                )
+                print(f"  Z[{z_idx_int}]          = [{z_poly_a}, {z_poly_b}]")
+            else:
+                print(f"  X_orth_full[{idx}] = [{poly_a}, {poly_b}] <-> Z[none]")
+    else:
+        print("  (empty)")
 
     print(
         "  CSS & Poly:  rank(css ∪ Z)={rank_css}, rank(poly ∪ Z)={rank_poly}, rank(css ∪ poly ∪ Z)={rank_union}, rank(Z stabilizer)={rank_z}".format(
