@@ -7,7 +7,7 @@ Core workflow:
 1) Compute Ann(f) as matrix M_f where rows are generators in basis x^i y^j.
 2) Compute g * Ann(f) as matrix M_g.
 3) Form the quotient Ann(f)/(g·Ann(f)) via Gaussian elimination.
-4) Combine Ann(f)/(g·Ann(f)), Ann(g)/(f·Ann(g)), and Tor terms to build logical Zs.
+4) Combine Ann(f)/(g·Ann(f)), Ann(g)/(f·Ann(g)), Tor_1, and Tor_2 terms to build logical Zs.
 """
 
 import contextlib
@@ -35,6 +35,26 @@ from bposd.css import css_code
 
 
 # === Helpers ===
+
+def invert_polynomial(poly: sp.Expr, l: int, m: int) -> sp.Expr:
+    """Return poly(x^-1, y^-1) reduced in GF(2)[x,y]/(x^l+1, y^m+1)."""
+
+    reduced = apply_periodic_boundary(poly, l, m)
+    try:
+        poly_mod = sp.Poly(reduced, x, y, modulus=2)
+    except sp.PolynomialError:
+        poly_mod = sp.Poly(expand(reduced, modulus=2), x, y, modulus=2)
+
+    inverted = sp.Integer(0)
+    for (exp_x, exp_y), coeff in poly_mod.terms():
+        if int(coeff) % 2 != 1:
+            continue
+        inv_x = (-exp_x) % l
+        inv_y = (-exp_y) % m
+        inverted += x**inv_x * y**inv_y
+
+    return apply_periodic_boundary(expand(inverted, modulus=2), l, m)
+
 
 def setup_ring(l: int, m: int):
     """Setup polynomial ring GF(2)[x,y] with periodic boundary x^l+1, y^m+1"""
@@ -841,6 +861,30 @@ def build_torsion_logical_indicator(
     }
 
 
+def build_tor2_logical_indicator(
+    tor2_poly: sp.Expr,
+    block1_poly: sp.Expr,
+    block2_poly: sp.Expr,
+    l: int,
+    m: int,
+) -> Dict[str, Any]:
+    """Map Tor_2 element to paired qubit support on the two blocks."""
+
+    qubit_tensor = np.zeros((2, l, m), dtype=np.uint8)
+    qubit_tensor[0] = _polynomial_to_block_indicator(block1_poly, l, m)
+    qubit_tensor[1] = _polynomial_to_block_indicator(block2_poly, l, m)
+    qubit_vector = qubit_tensor.reshape(-1)
+
+    return {
+        "poly": tor2_poly,
+        "block": "tor2",
+        "tensor": qubit_tensor,
+        "vector": qubit_vector,
+        "block1_poly": block1_poly,
+        "block2_poly": block2_poly,
+    }
+
+
 def compute_logical_qubit_operators(f_str: str, g_str: str, l: int, m: int) -> Dict[str, Any]:
     """Return logical Z operators as qubit occupancy vectors for both blocks."""
 
@@ -901,7 +945,30 @@ def compute_logical_qubit_operators(f_str: str, g_str: str, l: int, m: int) -> D
         entry["index"] = idx
         torsion_ops.append(entry)
 
-    all_vectors = [op["vector"] for op in block1_ops + block2_ops + torsion_ops]
+    tor2_ops = []
+    if tor2.get("tor_basis"):
+        tor2_blocks = tor2.get("tor_blocks", [])
+        for idx, poly in enumerate(tor2["tor_basis"]):
+            if idx < len(tor2_blocks):
+                block1_poly = tor2_blocks[idx].get("block1_poly")
+                block2_poly = tor2_blocks[idx].get("block2_poly")
+            else:
+                block1_poly = apply_periodic_boundary(sp.expand(poly * g_poly), l, m)
+                block2_poly = apply_periodic_boundary(sp.expand(poly * f_poly), l, m)
+            entry = build_tor2_logical_indicator(
+                poly,
+                block1_poly,
+                block2_poly,
+                l,
+                m,
+            )
+            entry["index"] = idx
+            tor2_ops.append(entry)
+
+    all_vectors = [
+        op["vector"]
+        for op in block1_ops + block2_ops + torsion_ops + tor2_ops
+    ]
     if all_vectors:
         logical_matrix = np.vstack(all_vectors).astype(np.uint8)
         span_rank = mod2.rank(logical_matrix)
@@ -913,6 +980,7 @@ def compute_logical_qubit_operators(f_str: str, g_str: str, l: int, m: int) -> D
         "block1": block1_ops,
         "block2": block2_ops,
         "torsion": torsion_ops,
+        "tor2": tor2_ops,
         "tor_details": torsion,
         "tor2_details": tor2,
         "matrix": logical_matrix,
@@ -934,6 +1002,22 @@ def compute_logical_z_universal(
     """Public entry point: logical Zs via the universal (matrix) construction."""
 
     return compute_logical_qubit_operators(f_str, g_str, l, m)
+
+def compute_logical_x_universal(
+    f_str: str,
+    g_str: str,
+    l: int,
+    m: int,
+) -> Dict[str, Any]:
+    """Public entry point: logical Xs via the dual (g^{-1}, f^{-1}) construction."""
+
+    f_poly = sp.sympify(f_str)
+    g_poly = sp.sympify(g_str)
+
+    x_f_poly = invert_polynomial(g_poly, l, m)
+    x_g_poly = invert_polynomial(f_poly, l, m)
+
+    return compute_logical_qubit_operators(x_f_poly, x_g_poly, l, m)
 
 
 # === Reporting ===
@@ -977,14 +1061,36 @@ def verify_logical_z_equivalence(
     block2_ops = logicals["block2"]
     torsion_ops = logicals["torsion"]
     tor2_details = logicals.get("tor2_details")
-    
-    poly_entries = block1_ops + block2_ops + torsion_ops
+    tor2_ops = logicals.get("tor2", [])
+    if tor2_ops is None:
+        tor2_ops = []
+    if not tor2_ops and tor2_details and tor2_details.get("tor_basis"):
+        tor2_blocks = tor2_details.get("tor_blocks", [])
+        for idx, poly in enumerate(tor2_details["tor_basis"]):
+            if idx < len(tor2_blocks):
+                block1_poly = tor2_blocks[idx].get("block1_poly")
+                block2_poly = tor2_blocks[idx].get("block2_poly")
+            else:
+                block1_poly = apply_periodic_boundary(sp.expand(poly * g_poly), l, m)
+                block2_poly = apply_periodic_boundary(sp.expand(poly * f_poly), l, m)
+            entry = build_tor2_logical_indicator(
+                poly,
+                block1_poly,
+                block2_poly,
+                l,
+                m,
+            )
+            entry["index"] = idx
+            tor2_ops.append(entry)
+
+    poly_entries = block1_ops + block2_ops + torsion_ops + tor2_ops
     # poly_entries = logicals["block1"] + logicals["block2"]
     
     # DEBUG: Show poly_entries structure and shape
     print(f"DEBUG: len(logicals['block1']): {len(logicals['block1'])}")
     print(f"DEBUG: len(logicals['block2']): {len(logicals['block2'])}")
     print(f"DEBUG: len(logicals.get('torsion', [])): {len(logicals.get('torsion', []))}")
+    print(f"DEBUG: len(logicals.get('tor2', [])): {len(logicals.get('tor2', []))}")
     print(f"DEBUG: total poly_entries length: {len(poly_entries)}")
     if poly_entries:
         print(f"DEBUG: first poly_entry vector shape: {poly_entries[0]['vector'].shape}")
@@ -1008,9 +1114,10 @@ def verify_logical_z_equivalence(
     block1_matrix = _to_matrix(block1_ops)
     block2_matrix = _to_matrix(block2_ops)
     torsion_matrix = _to_matrix(torsion_ops)
+    tor2_entries_matrix = _to_matrix(tor2_ops)
 
     poly_matrix = (
-        np.vstack([block1_matrix, block2_matrix, torsion_matrix])
+        np.vstack([block1_matrix, block2_matrix, torsion_matrix, tor2_entries_matrix])
         if poly_entries
         else np.zeros((0, Hz.shape[1]), dtype=np.uint8)
     )
@@ -1073,6 +1180,7 @@ def verify_logical_z_equivalence(
         ann_f_inside_matrix,
         ann_g_inside_matrix,
         torsion_matrix,
+        tor2_entries_matrix,
     ]
     selected_union_parts = [part for part in selected_union_parts if part.size]
     if selected_union_parts:
@@ -1091,6 +1199,7 @@ def verify_logical_z_equivalence(
         z_stab_basis,
         ann_f_inside_matrix,
         ann_g_inside_matrix,
+        tor2_entries_matrix,
     ]
     selected_union_parts = [part for part in selected_union_parts if part.size]
     if selected_union_parts:
@@ -1216,8 +1325,29 @@ def verify_logical_x_equivalence(
     block2_ops = logicals["block2"]
     torsion_ops = logicals["torsion"]
     tor2_details = logicals.get("tor2_details")
+    tor2_ops = logicals.get("tor2", [])
+    if tor2_ops is None:
+        tor2_ops = []
+    if not tor2_ops and tor2_details and tor2_details.get("tor_basis"):
+        tor2_blocks = tor2_details.get("tor_blocks", [])
+        for idx, poly in enumerate(tor2_details["tor_basis"]):
+            if idx < len(tor2_blocks):
+                block1_poly = tor2_blocks[idx].get("block1_poly")
+                block2_poly = tor2_blocks[idx].get("block2_poly")
+            else:
+                block1_poly = apply_periodic_boundary(sp.expand(poly * g_poly), l, m)
+                block2_poly = apply_periodic_boundary(sp.expand(poly * f_poly), l, m)
+            entry = build_tor2_logical_indicator(
+                poly,
+                block1_poly,
+                block2_poly,
+                l,
+                m,
+            )
+            entry["index"] = idx
+            tor2_ops.append(entry)
 
-    poly_entries = block1_ops + block2_ops + torsion_ops
+    poly_entries = block1_ops + block2_ops + torsion_ops + tor2_ops
 
     def _to_matrix(entries: List[Dict[str, Any]]) -> np.ndarray:
         if not entries:
@@ -1235,9 +1365,10 @@ def verify_logical_x_equivalence(
     block1_matrix = _to_matrix(block1_ops)
     block2_matrix = _to_matrix(block2_ops)
     torsion_matrix = _to_matrix(torsion_ops)
+    tor2_entries_matrix = _to_matrix(tor2_ops)
 
     poly_matrix = (
-        np.vstack([block1_matrix, block2_matrix, torsion_matrix])
+        np.vstack([block1_matrix, block2_matrix, torsion_matrix, tor2_entries_matrix])
         if poly_entries
         else np.zeros((0, Hx.shape[1]), dtype=np.uint8)
     )
@@ -1290,6 +1421,7 @@ def verify_logical_x_equivalence(
         ann_f_inside_matrix,
         ann_g_inside_matrix,
         torsion_matrix,
+        tor2_entries_matrix,
     ]
     selected_union_parts = [part for part in selected_union_parts if part.size]
     if selected_union_parts:
